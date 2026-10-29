@@ -1,0 +1,486 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                Int            @id @default(autoincrement())
+  name              String
+  email             String         @unique
+  password          String
+  role              String         @default("STUDENT")
+  isVerified        Boolean        @default(false)
+  verificationToken String?
+  avatar            String?
+  birthday          DateTime?
+  theme             String         @default("light")
+  language          String         @default("vi")
+  background        Json?
+  privacy           Json?
+  plan              String         @default("free")
+  premiumUntil      DateTime?
+  status            String         @default("active")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  studySets         StudySet[]
+  quizResults       QuizResult[]
+  folders           Folder[]
+  exams             Exam[]
+  examSaves         ExamSave[]
+  examViews         ExamView[]
+  lessonPlans       LessonPlan[]
+  studySetSaves     StudySetSave[]
+  studySetViews     StudySetView[]
+  hostedLiveExams   LiveExamSession[]     @relation("HostedLiveExams")
+  liveAttempts      LiveExamParticipant[] @relation("LiveExamAttempts")
+  notifications     AppNotification[]
+  feedbacks         Feedback[]
+  solutions         Solution[]
+  reports           ContentReport[] @relation("Reporter")
+  upgradeRequests      UpgradeRequest[]
+  specializedProgress  SpecializedProgress[]
+}
+
+model SpecializedField {
+  id          Int                  @id @default(autoincrement())
+  name        String
+  slug        String               @unique
+  description String               @default("")
+  icon        String               @default("Languages")
+  accent      String               @default("amber")
+  language    String               @default("en")
+  sortOrder   Int                  @default(0)
+  published   Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  lessons     SpecializedLesson[]
+}
+
+model SpecializedLesson {
+  id              Int                    @id @default(autoincrement())
+  fieldId         Int
+  field           SpecializedField       @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  title           String
+  description     String                 @default("")
+  icon            String                 @default("BookOpen")
+  section         String                 @default("")
+  sortOrder       Int                    @default(0)
+  requiresPremium Boolean                @default(false)
+  vocab           Json                   @default("[]")
+  scenarioTitle   String                 @default("")
+  aiSystemPrompt  String                 @default("")
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  progress        SpecializedProgress[]
+
+  @@index([fieldId, sortOrder])
+}
+
+model SpecializedProgress {
+  id          Int                @id @default(autoincrement())
+  userId      Int
+  lessonId    Int
+  completedAt DateTime           @default(now())
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      SpecializedLesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+}
+
+model UpgradeRequest {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transferCode String
+  amount       Int       @default(99000)
+  currency     String    @default("VND")
+  plan         String    @default("premium")
+  durationDays Int       @default(30)
+  status       String    @default("pending")
+  note         String?
+  reviewedBy   Int?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([transferCode])
+}
+
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  message   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model StudySet {
+  id             Int            @id @default(autoincrement())
+  title          String
+  description    String?
+  createdAt      DateTime       @default(now())
+  lastAccessedAt DateTime?
+  viewCount      Int            @default(0)
+  saveCount      Int            @default(0)
+  userId         Int
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards          Card[]
+  quizResults    QuizResult[]
+  saves          StudySetSave[]
+  views          StudySetView[]
+}
+
+model StudySetSave {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  studySetId Int
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studySet   StudySet @relation(fields: [studySetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, studySetId])
+  @@index([userId])
+  @@index([studySetId])
+}
+
+model StudySetView {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  studySetId Int
+  viewedAt   DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studySet   StudySet @relation(fields: [studySetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, studySetId])
+  @@index([userId, viewedAt])
+  @@index([studySetId])
+}
+
+model Card {
+  id         Int      @id @default(autoincrement())
+  term       String
+  definition String
+  image      String?
+  termImage  String?
+  studySetId Int
+  studySet   StudySet @relation(fields: [studySetId], references: [id], onDelete: Cascade)
+}
+
+model QuizResult {
+  id             Int      @id @default(autoincrement())
+  score          Int
+  totalQuestions Int
+  accuracy       Float
+  createdAt      DateTime @default(now())
+  userId         Int
+  studySetId     Int
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studySet       StudySet @relation(fields: [studySetId], references: [id], onDelete: Cascade)
+}
+
+model Folder {
+  id             Int          @id @default(autoincrement())
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  lastAccessedAt DateTime?
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items          FolderItem[]
+}
+
+model FolderItem {
+  id        Int      @id @default(autoincrement())
+  folderId  Int
+  itemType  String
+  refId     Int
+  createdAt DateTime @default(now())
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, itemType, refId])
+}
+
+model Exam {
+  id              Int            @id @default(autoincrement())
+  title           String
+  description     String?
+  grade           String         @default("Lớp 10")
+  durationMinutes Int            @default(45)
+  attemptCount    Int            @default(0)
+  downloadCount   Int            @default(0)
+  saveCount       Int            @default(0)
+  visibility      String         @default("public")
+  hidden          Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  lastAccessedAt  DateTime?
+  userId          Int
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions       ExamQuestion[]
+  saves           ExamSave[]
+  views           ExamView[]
+  liveSessions    LiveExamSession[]
+}
+
+model ExamView {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  examId    Int
+  viewedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, examId])
+  @@index([userId, viewedAt])
+  @@index([examId])
+}
+
+model ExamSave {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  examId    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, examId])
+  @@index([userId])
+  @@index([examId])
+}
+
+model ExamQuestion {
+  id          Int     @id @default(autoincrement())
+  examId      Int
+  prompt      String
+  type        String  @default("mcq")
+  audioUrl    String?
+  passage     String?
+  options     Json
+  correctKey  String  @default("")
+  explanation String?
+  meta        Json?
+  sortOrder   Int     @default(0)
+  exam        Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+}
+
+model LiveExamSession {
+  id              Int                   @id @default(autoincrement())
+  code            String                @unique
+  examId          Int
+  exam            Exam                  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  hostId          Int
+  host            User                  @relation("HostedLiveExams", fields: [hostId], references: [id], onDelete: Cascade)
+  status          String                @default("lobby")
+  startedAt       DateTime?
+  endedAt         DateTime?
+  durationMinutes Int
+  createdAt       DateTime              @default(now())
+  participants    LiveExamParticipant[]
+
+  @@index([examId])
+  @@index([hostId])
+  @@index([status])
+}
+
+model LiveExamParticipant {
+  id             Int             @id @default(autoincrement())
+  sessionId      Int
+  session        LiveExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User            @relation("LiveExamAttempts", fields: [userId], references: [id], onDelete: Cascade)
+  status         String          @default("waiting")
+  violationCount Int             @default(0)
+  score          Float?
+  maxScore       Int?
+  answers        Json?
+  gradingStatus  String          @default("none")
+  grading        Json?
+  startedAt      DateTime?
+  submittedAt    DateTime?
+  lastSeenAt     DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+}
+
+model AppNotification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  meta      Json?
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
+}
+
+model LessonPlan {
+  id             Int       @id @default(autoincrement())
+  title          String
+  description    String?
+  subject        String    @default("Tiếng Anh")
+  grade          String    @default("Lớp 10")
+  status         String    @default("draft")
+  visibility     String    @default("private")
+  content        Json      @default("[]")
+  htmlContent    String    @default("")
+  pdfUrl         String?
+  previewUrl     String?
+  pageCount      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastAccessedAt DateTime?
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+}
+
+model CurriculumSeries {
+  id          Int              @id @default(autoincrement())
+  name        String
+  slug        String           @unique
+  description String?
+  color       String           @default("#2563eb")
+  coverUrl    String?
+  sortOrder   Int              @default(0)
+  books       CurriculumBook[]
+}
+
+model CurriculumGrade {
+  id        Int                  @id @default(autoincrement())
+  name      String
+  slug      String               @unique
+  sortOrder Int                  @default(0)
+  subjects  CurriculumSubject[]
+  books     CurriculumBook[]
+}
+
+model CurriculumSubject {
+  id        Int              @id @default(autoincrement())
+  gradeId   Int
+  name      String
+  slug      String
+  sortOrder Int              @default(0)
+  grade     CurriculumGrade  @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  books     CurriculumBook[]
+
+  @@unique([gradeId, slug])
+  @@index([gradeId])
+}
+
+model CurriculumBook {
+  id          Int                  @id @default(autoincrement())
+  subjectId   Int?
+  seriesId    Int?
+  gradeId     Int?
+  title       String
+  subtitle    String?
+  publisher   String?
+  coverUrl    String?
+  pdfUrl      String?
+  pageCount   Int?
+  sourceBookId Int?
+  sortOrder   Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  subject     CurriculumSubject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  series      CurriculumSeries?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  grade       CurriculumGrade?     @relation(fields: [gradeId], references: [id], onDelete: SetNull)
+  sourceBook  CurriculumBook?      @relation("BookSource", fields: [sourceBookId], references: [id], onDelete: SetNull)
+  solutionBooks CurriculumBook[]   @relation("BookSource")
+  chapters    CurriculumChapter[]
+  hotspots    BookAudioHotspot[]
+
+  @@index([subjectId])
+  @@index([seriesId, gradeId])
+}
+
+model BookAudioHotspot {
+  id        Int            @id @default(autoincrement())
+  bookId    Int
+  page      Int
+  x         Float
+  y         Float
+  audioUrl  String
+  label     String?
+  createdAt DateTime       @default(now())
+  book      CurriculumBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, page])
+}
+
+model CurriculumChapter {
+  id        Int                @id @default(autoincrement())
+  bookId    Int
+  title     String
+  sortOrder Int                @default(0)
+  book      CurriculumBook     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  lessons   CurriculumLesson[]
+
+  @@index([bookId])
+}
+
+model CurriculumLesson {
+  id        Int                @id @default(autoincrement())
+  chapterId Int
+  title     String
+  sortOrder Int                @default(0)
+  chapter   CurriculumChapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  solutions Solution[]
+
+  @@index([chapterId])
+}
+
+model Solution {
+  id          Int              @id @default(autoincrement())
+  lessonId    Int
+  title       String
+  content     String           @default("")
+  audioUrl    String?
+  tags        Json?
+  examIds     Json?
+  studySetIds Json?
+  createdBy   Int
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  lesson      CurriculumLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  author      User             @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@index([createdBy])
+}
+
+model ContentReport {
+  id          Int      @id @default(autoincrement())
+  reporterId  Int
+  targetType  String
+  targetId    Int
+  reason      String
+  detail      String?
+  status      String   @default("pending")
+  action      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  reporter    User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
